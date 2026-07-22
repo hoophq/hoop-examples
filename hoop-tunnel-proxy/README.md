@@ -3,7 +3,7 @@
 Run an unchanged Python app against `http://httpbin.org` and have every
 request go through a [Hoop](https://hoop.dev) tunnel. The app dials the
 real hostname; the OS resolves it to the connection's tunnel IP; the
-hoop agent forwards the plain-HTTP bytes to the real upstream over TLS.
+hoop agent forwards the plain-HTTP bytes to the real upstream.
 Auth, audit, DLP, and guardrails apply to every request because the
 bytes cross the agent in cleartext.
 
@@ -12,7 +12,7 @@ app.py ── http://httpbin.org:80 ──► 100.85.x.x (tunnel IP via /etc/hos
                                         │
                           TUN ► gVisor ► gRPC ► hoop gateway
                                                     │
-                                        agent ── TLS ──► httpbin.org
+                                        agent ── http ──► httpbin.org
 ```
 
 The files:
@@ -33,15 +33,16 @@ type `application/httpproxy` whose upstream is httpbin:
 hoop admin create connection httpproxy-role \
   -a default \
   -t application/httpproxy \
-  -e REMOTE_URL=https://httpbin.org \
+  -e REMOTE_URL=http://httpbin.org \
   --overwrite
 ```
 
-`REMOTE_URL` is the only required env for httpproxy connections. The
-agent terminates TLS to that URL; clients of the tunnel speak plain
-HTTP on port 80. Keep `REMOTE_URL` on `https://` — the agent's own
-fetch then targets port 443 and can never collide with the port-80
-redirect on the client side.
+`REMOTE_URL` is the only required env for httpproxy connections. It is
+the address the agent dials; clients of the tunnel speak plain HTTP on
+port 80 regardless. With an `http://` upstream the agent's own fetch
+also targets port 80, so if the agent shares this machine's DNS the
+hosts-entry loop described under "Dev-only gotcha" applies — pin the
+real httpbin IP inside the agent container.
 
 ## 2. Install hsh and the tunnel daemon
 
@@ -159,7 +160,7 @@ If the agent runs on the same machine (or a container sharing its DNS,
 like the `hoopdev` docker setup), the hosts entry poisons the agent
 too: it resolves `REMOTE_URL`'s `httpbin.org` to the tunnel IP and
 dials back into the tunnel — the gateway log shows
-`dial tcp 100.85.226.73:443` and the client gets
+`dial tcp 100.85.226.73:...` and the client gets
 "Server disconnected without sending a response". Pin the real IP
 inside the container:
 
@@ -202,7 +203,7 @@ sudo ./redirect.sh down           # remove the entry, flush DNS
 ```
 
 Verify the traffic went through hoop: the gateway log shows
-`http request, GET https://httpbin.org/json` then
+`http request, GET http://httpbin.org/json` then
 `http response, status=200` on connection `httpproxy-role`, and the
 session list (`hoop admin get sessions`) grows one session per TCP
 connection the app opened.
@@ -210,7 +211,7 @@ connection the app opened.
 ## The old userspace approach
 
 `sidecard.py` predates the redirect: it monkeypatches
-`httpx.Client.send` to rewrite `https://httpbin.org/...` to
+`httpx.Client.send` to rewrite `http://httpbin.org/...` to
 `http://httpproxy-role.hoop/...` before the socket ever opens, then
 `runpy`s the target script:
 
