@@ -15,12 +15,13 @@ app.py ── http://httpbin.org:80 ──► 100.85.x.x (tunnel IP via /etc/hos
                                         agent ── TLS ──► httpbin.org
 ```
 
-Three files:
+The files:
 
 | File          | Purpose                                                        |
 |---------------|----------------------------------------------------------------|
 | `app.py`      | The app under test. Plain httpx, no hoop awareness.            |
-| `redirect.sh` | Points `httpbin.org` at the tunnel IP (`up` / `down` / `status`). |
+| `redirect.sh` | Points a hostname at the tunnel IP (`up` / `down` / `status`); targets set via `SOURCE_HOST` / `TUNNEL_NAME` env vars. |
+| `server.py`   | Local JSON server to tunnel back to your own machine — see [LOCAL-SERVER.md](LOCAL-SERVER.md). |
 | `sidecard.py` | Older userspace approach: monkeypatches httpx to rewrite URLs. Superseded by `redirect.sh`, kept for reference. |
 
 ## 1. Create the httpproxy connection
