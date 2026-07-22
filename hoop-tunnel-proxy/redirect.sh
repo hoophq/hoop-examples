@@ -28,8 +28,8 @@
 #                               # rejects 443 — it has no cert for httpbin.org)
 set -euo pipefail
 
-SOURCE_HOST="httpbin.org"                 # host the app dials
-TUNNEL_NAME="httpproxy-role.hoop"         # hoop connection (see: hsh tunnel ls)
+SOURCE_HOST="${SOURCE_HOST:-httpbin.org}"           # host the app dials (env-overridable)
+TUNNEL_NAME="${TUNNEL_NAME:-httpproxy-role.hoop}"   # hoop connection (see: hsh tunnel ls)
 TUNNEL_RESOLVER="fdc8:b7f6:8b4a::1"       # from /etc/resolver/hoop
 MARKER="# hoop-proxy-tunnel"              # tags our /etc/hosts line
 # pf-era state files, cleaned up by `down` if a previous version left them
@@ -53,7 +53,7 @@ flush_dns() {
 
 up() {
     need_root
-    grep -q "$MARKER" /etc/hosts && die "already up (marker present in /etc/hosts); run 'down' first"
+    grep -q "	$SOURCE_HOST	$MARKER" /etc/hosts && die "already up for $SOURCE_HOST; run 'down' first"
 
     TUNNEL_IP=$(tunnel_ip)
     [ -n "$TUNNEL_IP" ] || die "cannot resolve $TUNNEL_NAME via $TUNNEL_RESOLVER — is hsh-tunneld running? (hsh tunnel up)"
@@ -69,8 +69,8 @@ down() {
     need_root
 
     # remove our hosts entry
-    if grep -q "$MARKER" /etc/hosts; then
-        sed -i '' "/$MARKER/d" /etc/hosts
+    if grep -q "	$SOURCE_HOST	$MARKER" /etc/hosts; then
+        sed -i '' "/	$SOURCE_HOST	$MARKER/d" /etc/hosts
         flush_dns
         echo "hosts:   $SOURCE_HOST entry removed"
     fi
