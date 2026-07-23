@@ -91,15 +91,20 @@ One `/etc/hosts` line does the whole job:
 100.85.226.73	httpbin.org	# hoop-proxy-tunnel
 ```
 
+`redirect.sh` supports macOS and Linux. It requires `dig` (`dnsutils`
+on Debian/Ubuntu, `bind-utils` on Fedora/RHEL); Linux `status` also
+uses `getent`, which is normally installed with the system C library.
+
 - `up` resolves `httpproxy-role.hoop` through the tunnel resolver
-  (`fdc8:b7f6:8b4a::1`, from `/etc/resolver/hoop`), appends the tagged
-  hosts line, and flushes the DNS cache. The tunnel's address allocator
-  is deterministic, so the IP survives daemon restarts.
-- `down` deletes the tagged line, flushes again, and clears any state a
-  pf-based version of the script left behind (anchor rules, host
-  routes, the forwarding sysctl).
-- `status` prints the hosts line and what `httpbin.org` currently
-  resolves to.
+  (`fdc8:b7f6:8b4a::1` by default), appends the tagged hosts line, and
+  flushes the platform DNS cache. Set `TUNNEL_RESOLVER` when the daemon
+  uses a non-default session prefix.
+- `down` deletes the tagged line without replacing the `/etc/hosts`
+  inode, so it also works when that file is bind-mounted in a container.
+  On macOS it additionally clears state left by the older pf-based
+  version (anchor rules, host routes, and the forwarding sysctl).
+- `status` prints the hosts line and the live IPv4 resolution using
+  `dscacheutil` on macOS or `getent` on Linux.
 
 After the hosts entry, the app's socket lands on the tunnel IP, the
 `100.85/16` route the daemon installed carries it into the TUN, gVisor
